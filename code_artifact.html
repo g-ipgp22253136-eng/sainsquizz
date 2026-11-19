@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二年级科学：科学迷宫大冒险（多关卡版）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: radial-gradient(circle at top, #1e1b4b 0%, #090d16 100%);
+            user-select: none;
+            overflow-x: hidden;
+        }
+        /* 立体方向按钮按压效果 */
+        .dpad-btn {
+            box-shadow: 0 6px 0 #1e293b, 0 10px 15px rgba(0, 0, 0, 0.45);
+            transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.15s ease;
+            touch-action: manipulation;
+        }
+        .dpad-btn:active {
+            transform: translateY(5px);
+            box-shadow: 0 1px 0 #1e293b, 0 3px 6px rgba(0, 0, 0, 0.45);
+        }
+        .shake {
+            animation: shake 0.35s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        .pop-in {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.85); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-3 md:p-5 text-white">
+
+    <!-- 顶部状态栏 -->
+    <div id="hud" class="hidden w-full max-w-5xl bg-slate-900/95 border-2 border-indigo-400/60 rounded-2xl p-3 md:p-4 mb-3 flex flex-wrap justify-between items-center shadow-xl">
+        <div class="flex items-center space-x-3">
+            <span id="level-badge" class="bg-amber-400 text-slate-950 font-black px-3 py-1 rounded-full text-xs md:text-sm">第 1 关 / 4</span>
+            <div>
+                <h1 id="level-title" class="font-black text-base md:text-xl text-amber-300">五官观察迷宫</h1>
+                <p id="level-subtitle" class="text-xs text-slate-400 hidden sm:block">解开所有科学知识宝箱，抵达终点旗帜！</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3 md:space-x-5 mt-2 sm:mt-0">
+            <!-- 钥匙/宝箱进度 -->
+            <div class="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700 text-center">
+                <div class="text-[10px] text-slate-400 font-bold">知识宝箱</div>
+                <div id="keys-text" class="text-sm md:text-base font-black text-emerald-400">0 / 2 🔑</div>
+            </div>
+
+            <!-- 步数 -->
+            <div class="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-700 text-center">
+                <div class="text-[10px] text-slate-400 font-bold">步数</div>
+                <div id="steps-text" class="text-sm md:text-base font-black text-sky-400">0</div>
+            </div>
+
+            <!-- 得分 -->
+            <div class="bg-slate-950 px-3.5 py-1.5 rounded-xl border border-amber-400/50 flex items-center space-x-1">
+                <span class="text-base">⭐</span>
+                <span id="score-text" class="text-lg md:text-2xl font-black text-amber-400">0</span>
+            </div>
+
+            <!-- 返回选关 -->
+            <button onclick="showMenu()" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-bold px-3 py-2.5 rounded-xl transition">
+                选关
+            </button>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div id="main-box" class="w-full max-w-5xl bg-slate-900 rounded-3xl border-4 border-indigo-500/50 shadow-2xl overflow-hidden relative">
+
+        <!-- 开始与选关大厅 -->
+        <div id="start-screen" class="p-6 md:p-10 text-center bg-gradient-to-b from-slate-900 via-indigo-950/60 to-slate-950 flex flex-col items-center justify-center min-h-[560px]">
+            <div class="inline-block bg-indigo-500/20 border border-indigo-400 text-indigo-300 font-bold px-4 py-1 rounded-full text-sm mb-3">
+                二年级科学 · 单元一（第3-5页综合闯关）
+            </div>
+            <div class="text-6xl mb-3">🧭🧪🏰🔑</div>
+            <h1 class="text-3xl md:text-5xl font-black text-white mb-3 tracking-wide">科学迷宫大冒险</h1>
+            <p class="text-indigo-200 text-sm md:text-base max-w-2xl mb-6 leading-relaxed">
+                控制小小科学家穿越 4 座神秘迷宫！使用旁边的 <span class="text-amber-300 font-bold">【⬆️⬇️⬅️➡️ 方向按钮】</span> 移动，<br>
+                打开沿途的 <span class="text-emerald-300 font-bold">科学知识宝箱 🎁</span> 获取钥匙，解锁终点的传送门！
+            </p>
+
+            <!-- 4大关卡选择卡片 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-3xl mb-7 text-left">
+                <div onclick="startLevel(0)" class="cursor-pointer bg-slate-800/90 hover:bg-slate-700 border-2 border-emerald-500/60 hover:border-emerald-400 rounded-2xl p-4 transition shadow-lg flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="bg-emerald-500 text-slate-950 font-black text-xs px-2 py-0.5 rounded">第 1 关 · 简单</span>
+                            <span class="font-black text-lg text-white">👀 五官与分类迷宫</span>
+                        </div>
+                        <p class="text-xs text-slate-300">9×9 迷宫 · 第3页考点 · 2个知识宝箱</p>
+                    </div>
+                    <span id="lvl-badge-0" class="text-2xl">▶️</span>
+                </div>
+
+                <div onclick="startLevel(1)" class="cursor-pointer bg-slate-800/90 hover:bg-slate-700 border-2 border-sky-500/60 hover:border-sky-400 rounded-2xl p-4 transition shadow-lg flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="bg-sky-500 text-slate-950 font-black text-xs px-2 py-0.5 rounded">第 2 关 · 中等</span>
+                            <span class="font-black text-lg text-white">📏 精准测量迷宫</span>
+                        </div>
+                        <p class="text-xs text-slate-300">11×11 迷宫 · 第4页考点 · 3个知识宝箱</p>
+                    </div>
+                    <span id="lvl-badge-1" class="text-2xl">▶️</span>
+                </div>
+
+                <div onclick="startLevel(2)" class="cursor-pointer bg-slate-800/90 hover:bg-slate-700 border-2 border-purple-500/60 hover:border-purple-400 rounded-2xl p-4 transition shadow-lg flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="bg-purple-500 text-white font-black text-xs px-2 py-0.5 rounded">第 3 关 · 挑战</span>
+                            <span class="font-black text-lg text-white">📡 科学沟通迷宫</span>
+                        </div>
+                        <p class="text-xs text-slate-300">13×13 迷宫 · 第5页考点 · 3个知识宝箱</p>
+                    </div>
+                    <span id="lvl-badge-2" class="text-2xl">▶️</span>
+                </div>
+
+                <div onclick="startLevel(3)" class="cursor-pointer bg-slate-800/90 hover:bg-slate-700 border-2 border-amber-500/60 hover:border-amber-400 rounded-2xl p-4 transition shadow-lg flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="bg-amber-500 text-slate-950 font-black text-xs px-2 py-0.5 rounded">第 4 关 · 终极</span>
+                            <span class="font-black text-lg text-white">🧪 操纵性技能大迷宫</span>
+                        </div>
+                        <p class="text-xs text-slate-300">15×15 迷宫 · 综合大挑战 · 4个知识宝箱</p>
+                    </div>
+                    <span id="lvl-badge-3" class="text-2xl">▶️</span>
+                </div>
+            </div>
+
+            <button onclick="startLevel(0)" class="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-xl md:text-2xl px-12 py-4 rounded-full shadow-lg shadow-amber-500/30 transition">
+                从第 1 关开始探险！🚀
+            </button>
+        </div>
+
+        <!-- 迷宫游玩主界面：左侧迷宫画布 + 右侧上下左右控制盘 -->
+        <div id="play-screen" class="hidden p-4 md:p-6 flex flex-col lg:flex-row items-center justify-between gap-6 min-h-[560px]">
+            
+            <!-- 左侧：迷宫画布区域 -->
+            <div class="w-full lg:w-3/5 flex flex-col items-center">
+                <div id="canvas-wrapper" class="w-full max-w-[500px] aspect-square bg-slate-950 rounded-2xl border-4 border-slate-700 p-2 shadow-inner relative">
+                    <canvas id="maze-canvas" class="w-full h-full rounded-xl block"></canvas>
+                    
+                    <!-- 顶部温馨提示条 -->
+                    <div id="maze-toast" class="hidden absolute top-4 left-1/2 transform -translate-x-1/2 bg-amber-500 text-slate-950 font-black px-4 py-1.5 rounded-full shadow-lg text-xs md:text-sm whitespace-nowrap z-20">
+                        🔒 终点大门上锁啦！请先收集所有知识宝箱钥匙！
+                    </div>
+                </div>
+
+                <!-- 图例说明 -->
+                <div class="flex flex-wrap justify-center gap-4 mt-3 text-xs text-slate-300 font-bold">
+                    <span>🧑‍🔬 你（科学家）</span>
+                    <span>🎁 知识宝箱（答题拿钥匙）</span>
+                    <span>⭐ 能量星星（+20分）</span>
+                    <span>🏁 终点大门</span>
+                </div>
+            </div>
+
+            <!-- 右侧：上下左右方向控制器面板 -->
+            <div class="w-full lg:w-2/5 bg-slate-800/80 border-2 border-slate-700 rounded-3xl p-5 md:p-7 flex flex-col items-center justify-center shadow-xl">
+                <div class="text-center mb-4">
+                    <span class="bg-indigo-500/20 border border-indigo-400 text-indigo-300 text-xs font-bold px-3 py-1 rounded-full">
+                        🎮 方向控制器
+                    </span>
+                    <h3 class="text-lg font-black text-white mt-2">点击上下左右移动科学家</h3>
+                    <p class="text-xs text-slate-400">支持点击按钮、键盘方向键 / WASD</p>
+                </div>
+
+                <!-- 十字方向按钮组 (Up, Down, Left, Right) -->
+                <div class="grid grid-cols-3 gap-3 w-64 h-64 my-2">
+                    <div></div>
+                    <!-- 上 -->
+                    <button onclick="movePlayer(0, -1)" aria-label="向上移动" class="dpad-btn bg-gradient-to-b from-sky-400 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white rounded-2xl flex flex-col items-center justify-center border-2 border-sky-200">
+                        <span class="text-3xl leading-none">⬆️</span>
+                        <span class="text-xs font-black mt-1">上</span>
+                    </button>
+                    <div></div>
+
+                    <!-- 左 -->
+                    <button onclick="movePlayer(-1, 0)" aria-label="向左移动" class="dpad-btn bg-gradient-to-b from-sky-400 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white rounded-2xl flex flex-col items-center justify-center border-2 border-sky-200">
+                        <span class="text-3xl leading-none">⬅️</span>
+                        <span class="text-xs font-black mt-1">左</span>
+                    </button>
+
+                    <!-- 中心装饰罗盘 -->
+                    <div class="bg-slate-900 rounded-2xl border-2 border-slate-700 flex items-center justify-center text-2xl shadow-inner">
+                        🧭
+                    </div>
+
+                    <!-- 右 -->
+                    <button onclick="movePlayer(1, 0)" aria-label="向右移动" class="dpad-btn bg-gradient-to-b from-sky-400 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white rounded-2xl flex flex-col items-center justify-center border-2 border-sky-200">
+                        <span class="text-3xl leading-none">➡️</span>
+                        <span class="text-xs font-black mt-1">右</span>
+                    </button>
+
+                    <div></div>
+                    <!-- 下 -->
+                    <button onclick="movePlayer(0, 1)" aria-label="向下移动" class="dpad-btn bg-gradient-to-b from-sky-400 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white rounded-2xl flex flex-col items-center justify-center border-2 border-sky-200">
+                        <span class="text-3xl leading-none">⬇️</span>
+                        <span class="text-xs font-black mt-1">下</span>
+                    </button>
+                    <div></div>
+                </div>
+
+                <!-- 辅助操作按钮 -->
+                <div class="mt-5 flex gap-3 w-full max-w-xs">
+                    <button onclick="restartCurrentLevel()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-2.5 px-4 rounded-xl border border-slate-500 text-sm transition">
+                        🔄 重置本关
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 知识宝箱答题弹窗 -->
+        <div id="quiz-modal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 z-40">
+            <div class="bg-slate-800 border-4 border-amber-400 rounded-3xl max-w-lg w-full p-6 shadow-2xl text-center pop-in">
+                <div class="inline-block bg-amber-500 text-slate-950 font-black px-4 py-1 rounded-full text-sm mb-3">
+                    🎁 发现科学知识宝箱！答对获得钥匙 🔑
+                </div>
+                <h3 id="quiz-question" class="text-xl md:text-2xl font-black text-white mb-5 leading-snug">
+                    问题加载中...
+                </h3>
+                <div id="quiz-options" class="space-y-3 text-left">
+                    <!-- 选项按钮动态注入 -->
+                </div>
+                <p id="quiz-hint" class="hidden text-rose-400 font-bold text-sm mt-4">
+                    ❌ 答错啦，再仔细想想课本内容，重新选一个！
+                </p>
+            </div>
+        </div>
+
+        <!-- 过关结算画面 -->
+        <div id="end-screen" class="hidden p-8 md:p-12 text-center bg-gradient-to-b from-slate-900 to-indigo-950/70 flex flex-col items-center justify-center min-h-[560px]">
+            <div id="end-icon" class="text-7xl md:text-8xl mb-4">🎉🏆</div>
+            <h2 id="end-title" class="text-3xl md:text-4xl font-black text-amber-400 mb-2">恭喜成功走出迷宫！</h2>
+            <p id="end-desc" class="text-indigo-200 text-base max-w-lg mb-6">
+                你不仅走出了迷宫，还解开了所有的科学知识宝箱！
+            </p>
+
+            <div class="bg-slate-950 border-2 border-indigo-500/40 rounded-2xl p-6 mb-8 w-full max-w-md">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <div class="text-xs text-slate-400 font-bold">总积分</div>
+                        <div id="final-score" class="text-2xl md:text-3xl font-black text-amber-400">0</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400 font-bold">本关步数</div>
+                        <div id="final-steps" class="text-2xl md:text-3xl font-black text-sky-400">0</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400 font-bold">已通关数</div>
+                        <div id="final-cleared" class="text-2xl md:text-3xl font-black text-emerald-400">1 / 4</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap justify-center gap-4">
+                <button id="next-lvl-btn" onclick="nextLevel()" class="bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black text-xl px-9 py-4 rounded-full shadow-lg">
+                    挑战下一关 ➡️
+                </button>
+                <button onclick="showMenu()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold text-lg px-7 py-4 rounded-full border border-slate-500">
+                    返回关卡列表 📋
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==================== 4个独立迷宫关卡配置（0=通路, 1=墙壁） ====================
+        const levelsConfig = [
+            // 第 1 关：9x9 简单迷宫（第3页：观察与分类）
+            {
+                title: "👀 第1关：五官与分类迷宫",
+                subtitle: "收集 2 把知识钥匙，打开终点传送门！",
+                wallColor: "#059669",
+                wallBorder: "#34d399",
+                floorColor: "#064e3b",
+                grid: [
+                    [1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,1,0,0,0,1],
+                    [1,0,1,0,1,0,1,0,1],
+                    [1,0,1,0,0,0,1,0,1],
+                    [1,0,1,1,1,0,1,0,1],
+                    [1,0,0,0,1,0,0,0,1],
+                    [1,1,1,0,1,1,1,0,1],
+                    [1,0,0,0,0,0,1,0,1],
+                    [1,1,1,1,1,1,1,1,1]
+                ],
+                start: { x: 1, y: 1 },
+                exit: { x: 7, y: 7 },
+                chests: [
+                    {
+                        x: 3, y: 1, opened: false,
+                        q: "进行观察时，我们用【鼻子】可以了解物体的什么特征？",
+                        options: ["气味（香或臭）", "颜色和形状", "声音的大小"],
+                        ans: 0
+                    },
+                    {
+                        x: 1, y: 7, opened: false,
+                        q: "苹果、香蕉和西瓜都拥有相同的特征，应该归类为哪一组？",
+                        options: ["蔬菜", "水果", "饮料"],
+                        ans: 1
+                    }
+                ],
+                stars: [
+                    { x: 1, y: 5, collected: false },
+                    { x: 5, y: 1, collected: false },
+                    { x: 5, y: 7, collected: false }
+                ]
+            },
+
+            // 第 2 关：11x11 中等迷宫（第4页：测量与应用数目）
+            {
+                title: "📏 第2关：精准测量迷宫",
+                subtitle: "收集 3 把测量钥匙，校准视线冲向终点！",
+                wallColor: "#0284c7",
+                wallBorder: "#38bdf8",
+                floorColor: "#0c4a6e",
+                grid: [
+                    [1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,1,0,0,0,1],
+                    [1,0,1,1,1,0,1,0,1,0,1],
+                    [1,0,1,0,0,0,0,0,1,0,1],
+                    [1,0,1,0,1,1,1,1,1,0,1],
+                    [1,0,0,0,1,0,0,0,0,0,1],
+                    [1,1,1,0,1,0,1,1,1,0,1],
+                    [1,0,0,0,0,0,1,0,0,0,1],
+                    [1,0,1,1,1,1,1,0,1,1,1],
+                    [1,0,0,0,0,0,0,0,0,0,1],
+                    [1,1,1,1,1,1,1,1,1,1,1]
+                ],
+                start: { x: 1, y: 1 },
+                exit: { x: 9, y: 9 },
+                chests: [
+                    {
+                        x: 5, y: 1, opened: false,
+                        q: "用量筒测量液体的体积时，读取读数的视线必须与什么平行？",
+                        options: ["量筒的底部", "水的弯月面", "桌子边缘"],
+                        ans: 1
+                    },
+                    {
+                        x: 9, y: 1, opened: false,
+                        q: "测量【100米竞跑的时间】，最适合使用什么测量单位？",
+                        options: ["秒 (s)", "毫升 (ml)", "公斤 (kg)"],
+                        ans: 0
+                    },
+                    {
+                        x: 1, y: 9, opened: false,
+                        q: "测量【一盒牛奶的体积】时，应该使用哪一种单位？",
+                        options: ["厘米 (cm)", "毫升 (ml)", "克 (g)"],
+                        ans: 1
+                    }
+                ],
+                stars: [
+                    { x: 3, y: 3, collected: false },
+                    { x: 5, y: 5, collected: false },
+                    { x: 9, y: 7, collected: false },
+                    { x: 1, y: 5, collected: false }
+                ]
+            },
+
+            // 第 3 关：13x13 挑战迷宫（第5页上半部分：科学沟通）
+            {
+                title: "📡 第3关：科学沟通迷宫",
+                subtitle: "收集 3 把沟通钥匙，破译电台迷宫密码！",
+                wallColor: "#7e22ce",
+                wallBorder: "#c084fc",
+                floorColor: "#3b0764",
+                grid: [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,1,0,0,0,0,0,1,0,1],
+                    [1,1,1,0,1,0,1,1,1,0,1,0,1],
+                    [1,0,0,0,0,0,1,0,0,0,0,0,1],
+                    [1,0,1,1,1,1,1,0,1,1,1,0,1],
+                    [1,0,1,0,0,0,0,0,1,0,0,0,1],
+                    [1,0,1,0,1,1,1,1,1,0,1,1,1],
+                    [1,0,0,0,1,0,0,0,0,0,0,0,1],
+                    [1,1,1,0,1,0,1,1,1,1,1,0,1],
+                    [1,0,0,0,0,0,1,0,0,0,1,0,1],
+                    [1,0,1,1,1,1,1,0,1,0,1,0,1],
+                    [1,0,0,0,0,0,0,0,1,0,0,0,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1]
+                ],
+                start: { x: 1, y: 1 },
+                exit: { x: 11, y: 11 },
+                chests: [
+                    {
+                        x: 11, y: 1, opened: false,
+                        q: "小华把绿豆发芽的过程画在科学笔记簿里，这属于哪种沟通方法？",
+                        options: ["口述", "绘图", "信息与通信技术"],
+                        ans: 1
+                    },
+                    {
+                        x: 1, y: 5, opened: false,
+                        q: "同学们上台用嘴巴向全班报告实验结果，这属于哪种沟通方法？",
+                        options: ["口述", "书写", "绘图"],
+                        ans: 0
+                    },
+                    {
+                        x: 9, y: 11, opened: false,
+                        q: "伟强用电脑制作图表并发送电邮给老师，这属于哪种沟通方法？",
+                        options: ["书写", "口述", "信息与通信技术"],
+                        ans: 2
+                    }
+                ],
+                stars: [
+                    { x: 5, y: 1, collected: false },
+                    { x: 3, y: 5, collected: false },
+                    { x: 11, y: 7, collected: false },
+                    { x: 1, y: 11, collected: false }
+                ]
+            },
+
+            // 第 4 关：15x15 终极迷宫（第5页下半部分：操纵性技能）
+            {
+                title: "🧪 第4关：操纵性技能终极迷宫",
+                subtitle: "最终决战！收集 4 把实验室安全钥匙！",
+                wallColor: "#c2410c",
+                wallBorder: "#fb923c",
+                floorColor: "#431407",
+                grid: [
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+                    [1,0,1,1,1,0,1,0,1,1,1,1,1,0,1],
+                    [1,0,1,0,0,0,0,0,1,0,0,0,1,0,1],
+                    [1,0,1,0,1,1,1,1,1,0,1,0,1,0,1],
+                    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+                    [1,1,1,1,1,0,1,1,1,1,1,1,1,0,1],
+                    [1,0,0,0,0,0,1,0,0,0,0,0,1,0,1],
+                    [1,0,1,1,1,1,1,0,1,1,1,0,1,0,1],
+                    [1,0,1,0,0,0,0,0,1,0,0,0,0,0,1],
+                    [1,0,1,0,1,1,1,1,1,0,1,1,1,1,1],
+                    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+                    [1,1,1,0,1,0,1,1,1,1,1,0,1,0,1],
+                    [1,0,0,0,0,0,1,0,0,0,0,0,1,0,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                ],
+                start: { x: 1, y: 1 },
+                exit: { x: 13, y: 13 },
+                chests: [
+                    {
+                        x: 13, y: 1, opened: false,
+                        q: "实验结束后，用完的脏烧杯和试管应该怎么处理？",
+                        options: ["直接放回橱柜", "正确地清洗科学用具并晾干", "留在桌上等别人洗"],
+                        ans: 1
+                    },
+                    {
+                        x: 5, y: 5, opened: false,
+                        q: "观察完活生生的小蜗牛（标本）后，正确的做法是？",
+                        options: ["放进铅笔盒带回家", "丢进垃圾桶", "正确地处理标本，放回大自然草丛"],
+                        ans: 2
+                    },
+                    {
+                        x: 1, y: 13, opened: false,
+                        q: "清洗并擦干后的科学用具，应该放在哪里？",
+                        options: ["正确地存放在原位（科学橱柜）", "随便放在走廊地上", "塞进抽屉里"],
+                        ans: 0
+                    },
+                    {
+                        x: 7, y: 13, opened: false,
+                        q: "在科学记录本上画出标本和科学用具时，我们应该怎么画？",
+                        options: ["随便涂鸦乱画", "正确、清楚、工整地画出", "撕掉纸折飞机"],
+                        ans: 1
+                    }
+                ],
+                stars: [
+                    { x: 3, y: 3, collected: false },
+                    { x: 9, y: 3, collected: false },
+                    { x: 1, y: 7, collected: false },
+                    { x: 11, y: 11, collected: false },
+                    { x: 5, y: 11, collected: false }
+                ]
+            }
+        ];
+
+        // 全局状态
+        let currentLevelIdx = 0;
+        let clearedLevels = [false, false, false, false];
+        let levelState = null;
+        let player = { x: 1, y: 1 };
+        let steps = 0;
+        let score = 0;
+        let isQuizOpen = false;
+        let activeChest = null;
+        let isLevelFinished = false;
+
+        const canvas = document.getElementById('maze-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 键盘方向键 / WASD 联动旁侧按钮
+        window.addEventListener('keydown', (e) => {
+            if (isQuizOpen || isLevelFinished) return;
+            if (document.getElementById('play-screen').classList.contains('hidden')) return;
+
+            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); movePlayer(0, -1); }
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') { e.preventDefault(); movePlayer(0, 1); }
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { e.preventDefault(); movePlayer(-1, 0); }
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); movePlayer(1, 0); }
+        });
+
+        // 触摸屏直接在迷宫画布上滑动也可以移动
+        let touchStartX = 0, touchStartY = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchend', (e) => {
+            if (isQuizOpen || isLevelFinished || e.changedTouches.length === 0) return;
+            const dx = e.changedTouches[0].clientX - touchStartX;
+            const dy = e.changedTouches[0].clientY - touchStartY;
+            if (Math.max(Math.abs(dx), Math.abs(dy)) > 24) {
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    movePlayer(dx > 0 ? 1 : -1, 0);
+                } else {
+                    movePlayer(0, dy > 0 ? 1 : -1);
+                }
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (!document.getElementById('play-screen').classList.contains('hidden')) {
+                resizeAndDraw();
+            }
+        });
+
+        function showMenu() {
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('play-screen').classList.add('hidden');
+            document.getElementById('quiz-modal').classList.add('hidden');
+            document.getElementById('end-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`lvl-badge-${i}`).innerText = clearedLevels[i] ? '✅' : '▶️';
+            }
+        }
+
+        function startLevel(idx) {
+            currentLevelIdx = idx;
+            const cfg = levelsConfig[idx];
+
+            // 深拷贝关卡状态以便重玩
+            levelState = {
+                ...cfg,
+                chests: cfg.chests.map(c => ({ ...c, opened: false })),
+                stars: cfg.stars.map(s => ({ ...s, collected: false }))
+            };
+
+            player = { x: cfg.start.x, y: cfg.start.y };
+            steps = 0;
+            isQuizOpen = false;
+            activeChest = null;
+            isLevelFinished = false;
+
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('end-screen').classList.add('hidden');
+            document.getElementById('quiz-modal').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            document.getElementById('play-screen').classList.remove('hidden');
+
+            document.getElementById('level-badge').innerText = `第 ${idx + 1} 关 / 4`;
+            document.getElementById('level-title').innerText = cfg.title;
+            document.getElementById('level-subtitle').innerText = cfg.subtitle;
+
+            updateHUD();
+            resizeAndDraw();
+        }
+
+        function restartCurrentLevel() {
+            startLevel(currentLevelIdx);
+        }
+
+        function nextLevel() {
+            if (currentLevelIdx < levelsConfig.length - 1) {
+                startLevel(currentLevelIdx + 1);
+            } else {
+                showMenu();
+            }
+        }
+
+        function updateHUD() {
+            const openedCount = levelState.chests.filter(c => c.opened).length;
+            const totalChests = levelState.chests.length;
+            document.getElementById('keys-text').innerText = `${openedCount} / ${totalChests} 🔑`;
+            document.getElementById('steps-text').innerText = steps;
+            document.getElementById('score-text').innerText = score;
+        }
+
+        function showMazeToast(msg) {
+            const toast = document.getElementById('maze-toast');
+            toast.innerText = msg;
+            toast.classList.remove('hidden');
+            clearTimeout(window.mazeToastTimer);
+            window.mazeToastTimer = setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 1800);
+        }
+
+        function movePlayer(dx, dy) {
+            if (isQuizOpen || isLevelFinished || !levelState) return;
+
+            const nx = player.x + dx;
+            const ny = player.y + dy;
+            const grid = levelState.grid;
+
+            // 边界与墙壁检测
+            if (ny < 0 || ny >= grid.length || nx < 0 || nx >= grid[0].length || grid[ny][nx] === 1) {
+                const wrapper = document.getElementById('canvas-wrapper');
+                wrapper.classList.add('shake');
+                setTimeout(() => wrapper.classList.remove('shake'), 250);
+                return;
+            }
+
+            player.x = nx;
+            player.y = ny;
+            steps++;
+
+            // 检查是否吃到能量星星
+            for (const star of levelState.stars) {
+                if (!star.collected && star.x === nx && star.y === ny) {
+                    star.collected = true;
+                    score += 20;
+                    showMazeToast("⭐ 收集能量星星！+20 分！");
+                }
+            }
+
+            // 检查是否遇到未开启的知识宝箱
+            for (const chest of levelState.chests) {
+                if (!chest.opened && chest.x === nx && chest.y === ny) {
+                    openChestQuiz(chest);
+                    updateHUD();
+                    drawMaze();
+                    return;
+                }
+            }
+
+            // 检查是否到达终点
+            if (nx === levelState.exit.x && ny === levelState.exit.y) {
+                const allOpened = levelState.chests.every(c => c.opened);
+                if (!allOpened) {
+                    const remain = levelState.chests.filter(c => !c.opened).length;
+                    showMazeToast(`🔒 终点大门上锁啦！还有 ${remain} 个知识宝箱未开启！`);
+                } else {
+                    completeLevel();
+                }
+            }
+
+            updateHUD();
+            drawMaze();
+        }
+
+        function openChestQuiz(chest) {
+            isQuizOpen = true;
+            activeChest = chest;
+
+            document.getElementById('quiz-question').innerText = chest.q;
+            document.getElementById('quiz-hint').classList.add('hidden');
+
+            const optsContainer = document.getElementById('quiz-options');
+            optsContainer.innerHTML = chest.options.map((opt, idx) => `
+                <button onclick="answerChest(${idx})" class="w-full bg-slate-700 hover:bg-amber-400 hover:text-slate-950 border-2 border-slate-600 hover:border-amber-200 text-white font-bold p-4 rounded-2xl transition flex items-center space-x-3">
+                    <span class="w-8 h-8 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center font-black shrink-0">${['A','B','C'][idx]}</span>
+                    <span>${opt}</span>
+                </button>
+            `).join('');
+
+            document.getElementById('quiz-modal').classList.remove('hidden');
+        }
+
+        function answerChest(chosenIdx) {
+            if (!activeChest) return;
+            if (chosenIdx === activeChest.ans) {
+                activeChest.opened = true;
+                score += 100;
+                isQuizOpen = false;
+                activeChest = null;
+                document.getElementById('quiz-modal').classList.add('hidden');
+                updateHUD();
+                drawMaze();
+
+                const allOpened = levelState.chests.every(c => c.opened);
+                if (allOpened) {
+                    showMazeToast("🎉 钥匙已集齐！终点传送门已解锁，快冲向 🏁！");
+                } else {
+                    showMazeToast("🔑 答对啦！获得一把钥匙 (+100分)！");
+                }
+            } else {
+                const hint = document.getElementById('quiz-hint');
+                hint.classList.remove('hidden');
+                const modalCard = document.querySelector('#quiz-modal > div');
+                modalCard.classList.add('shake');
+                setTimeout(() => modalCard.classList.remove('shake'), 350);
+            }
+        }
+
+        function completeLevel() {
+            isLevelFinished = true;
+            clearedLevels[currentLevelIdx] = true;
+            score += 150; // 通关奖励
+            updateHUD();
+
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('play-screen').classList.add('hidden');
+
+            const clearedCount = clearedLevels.filter(Boolean).length;
+            const nextBtn = document.getElementById('next-lvl-btn');
+
+            if (currentLevelIdx < levelsConfig.length - 1) {
+                document.getElementById('end-icon').innerText = '🎉🔑';
+                document.getElementById('end-title').innerText = `恭喜通过【${levelState.title}】！`;
+                document.getElementById('end-desc').innerText = '太厉害了！你成功集齐知识钥匙并走出了迷宫！准备好迎接下一关了吗？';
+                nextBtn.classList.remove('hidden');
+            } else {
+                document.getElementById('end-icon').innerText = '👑🏆';
+                document.getElementById('end-title').innerText = '全套4大迷宫大通关！迷宫小博士！';
+                document.getElementById('end-desc').innerText = '你已经成功征服了所有科学迷宫关卡，完全掌握了课本第3-5页的科学技能！';
+                nextBtn.classList.add('hidden');
+            }
+
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-steps').innerText = steps;
+            document.getElementById('final-cleared').innerText = `${clearedCount} / 4`;
+
+            document.getElementById('end-screen').classList.remove('hidden');
+        }
+
+        // ==================== Canvas 响应式绘制 ====================
+        function resizeAndDraw() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const size = wrapper.clientWidth - 16;
+            if (size <= 0) return;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = size * dpr;
+            canvas.height = size * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            drawMaze();
+        }
+
+        function drawMaze() {
+            if (!levelState) return;
+            const grid = levelState.grid;
+            const rows = grid.length;
+            const cols = grid[0].length;
+            const size = canvas.width / (window.devicePixelRatio || 1);
+            const cellSize = size / cols;
+
+            // 清空背景
+            ctx.fillStyle = levelState.floorColor;
+            ctx.fillRect(0, 0, size, size);
+
+            // 绘制网格地板与墙壁
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const x = c * cellSize;
+                    const y = r * cellSize;
+
+                    if (grid[r][c] === 1) {
+                        // 墙壁立体块
+                        ctx.fillStyle = levelState.wallColor;
+                        ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+                        ctx.strokeStyle = levelState.wallBorder;
+                        ctx.lineWidth = 1.5;
+                        ctx.strokeRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
+                    } else {
+                        // 通路微弱网格线
+                        ctx.strokeStyle = "rgba(255,255,255,0.06)";
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x, y, cellSize, cellSize);
+                    }
+                }
+            }
+
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            const emojiFontSize = Math.floor(cellSize * 0.68);
+            ctx.font = `${emojiFontSize}px sans-serif`;
+
+            // 绘制能量星星
+            for (const star of levelState.stars) {
+                if (!star.collected) {
+                    ctx.fillText("⭐", (star.x + 0.5) * cellSize, (star.y + 0.52) * cellSize);
+                }
+            }
+
+            // 绘制知识宝箱
+            for (const chest of levelState.chests) {
+                const cx = (chest.x + 0.5) * cellSize;
+                const cy = (chest.y + 0.52) * cellSize;
+                if (chest.opened) {
+                    ctx.globalAlpha = 0.45;
+                    ctx.fillText("🔓", cx, cy);
+                    ctx.globalAlpha = 1.0;
+                } else {
+                    ctx.fillText("🎁", cx, cy);
+                }
+            }
+
+            // 绘制终点大门（未集齐钥匙显示锁头，集齐显示终点旗帜）
+            const allOpened = levelState.chests.every(c => c.opened);
+            const ex = (levelState.exit.x + 0.5) * cellSize;
+            const ey = (levelState.exit.y + 0.52) * cellSize;
+            ctx.fillText(allOpened ? "🏁" : "🔒", ex, ey);
+
+            // 绘制玩家角色（小小科学家）
+            const px = (player.x + 0.5) * cellSize;
+            const py = (player.y + 0.52) * cellSize;
+
+            // 脚下发光圆环
+            ctx.beginPath();
+            ctx.arc(px, py, cellSize * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(250, 204, 21, 0.3)";
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#fde047";
+            ctx.stroke();
+
+            ctx.fillText("🧑‍🔬", px, py);
+        }
+    </script>
+</body>
+</html>
